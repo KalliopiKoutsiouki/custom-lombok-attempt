@@ -5,12 +5,6 @@ Source code that can be installed in local maven repository and be used as depen
 2. mvn clean
 3. mvn install (to install the .jar to your maven repository)
 4. add it as a dependency to any maven project : 
-       ```xml
-<dependency>
-<groupId>org.example</groupId>
-<artifactId>lombok_attempt</artifactId>
-<version>1.0-SNAPSHOT</version>
-</dependency>
-```
+    ![image](https://github.com/KalliopiKoutsiouki/custom-lombok-attempt/assets/59616356/511a4de0-bcd5-4d4b-a812-3e53bf83fc4b)
 
 
