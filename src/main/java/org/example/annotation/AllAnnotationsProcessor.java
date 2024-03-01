@@ -1,0 +1,149 @@
+package org.example.annotation;
+
+import com.google.auto.service.AutoService;
+
+import javax.annotation.processing.*;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.*;
+import javax.tools.*;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.sql.SQLOutput;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.io.File;
+
+@SupportedAnnotationTypes({"org.example.annotation.Getters", "org.example.annotation.Setters",  "org.example.annotation.ArgsConstructor"})
+@SupportedSourceVersion(SourceVersion.RELEASE_21)
+@AutoService(Processor.class)
+public class AllAnnotationsProcessor extends AbstractProcessor {
+
+    private static final String OUTPUT_PATH_PREFIX = "target/generated-sources/annotations/";
+
+    @Override
+    public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+        for (TypeElement annotation : annotations) {
+            for (Element element : roundEnv.getElementsAnnotatedWith(annotation)) {
+                if (element.getKind() == ElementKind.CLASS) {
+                    TypeElement typeElement = (TypeElement) element;
+                    String packageName = processingEnv.getElementUtils().getPackageOf(typeElement).getQualifiedName().toString();
+                    String className = typeElement.getSimpleName().toString();
+                    String generatedClassName = className + "Generated";
+                    StringBuilder generatedCode = new StringBuilder();
+
+                    // commenting out package creation for the specific use in the custom-orm-project
+                    // generatedCode.append("package ").append(packageName).append(";\n\n");
+
+                    generatedCode.append("public class ").append(generatedClassName).append(" {\n");
+                    List<String> constructorArgs = new ArrayList<>();
+                    generateFieldsAndPopulateConstuctorArgs(typeElement, constructorArgs, generatedCode);
+                    generateDefaultConstructor(generatedCode, generatedClassName);
+                    if (isAllArgsConstrAnnotation(roundEnv)) {
+                        generateAllArgsConstructor(generatedCode, generatedClassName, constructorArgs, typeElement);
+                    }
+                    if (isGetterAnnotation(roundEnv) || isSetterAnnotation(roundEnv)) {
+                        generateGettersAndSetters(typeElement, generatedCode, roundEnv);
+                    }
+                    // Close the class
+                    generatedCode.append("}\n");
+                    // Define the output directory path for the generated source file
+                    String outputPath = OUTPUT_PATH_PREFIX + packageName.replace(".", "/");
+                    // Create the output directory if it doesn't exist
+                    new File(outputPath).mkdirs();
+                    // Write the generated code to a new Java source file
+                    writeToJavaSourceFile(packageName, generatedClassName, generatedCode);
+                }
+            }
+        }
+        return true;
+    }
+
+    private void writeToJavaSourceFile(String packageName, String generatedClassName, StringBuilder generatedCode) {
+        try {
+            JavaFileObject javaFileObject = processingEnv.getFiler().createSourceFile(
+                    packageName + "." + generatedClassName);
+            try (PrintWriter out = new PrintWriter(javaFileObject.openWriter())) {
+                out.println(generatedCode.toString());
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void generateGettersAndSetters(TypeElement typeElement, StringBuilder generatedCode, RoundEnvironment roundEnv) {
+        for (Element enclosedElement : typeElement.getEnclosedElements()) {
+            if (enclosedElement.getKind() == ElementKind.FIELD) {
+                String fieldName = enclosedElement.getSimpleName().toString();
+                String fieldType = enclosedElement.asType().toString();
+                String fieldTypeTrimed = trimType(fieldType);
+                String getterName = "get" + Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
+                String setterName = "set" + Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
+                if(isGetterAnnotation(roundEnv)) {
+                    generatedCode.append("\n    public ").append(fieldTypeTrimed).append(" ").append(getterName).append("() {\n");
+                    generatedCode.append("        return this.").append(fieldName).append(";\n");
+                    generatedCode.append("    }\n");
+                }
+                if (isSetterAnnotation(roundEnv)) {
+                    generatedCode.append("\n    public void ").append(setterName).append("(").append(fieldTypeTrimed).append(" ").append(fieldName).append(") {\n");
+                    generatedCode.append("        this.").append(fieldName).append(" = ").append(fieldName).append(";\n");
+                    generatedCode.append("    }\n");
+                }
+            }
+        }
+    }
+
+    private static void generateAllArgsConstructor(StringBuilder generatedCode, String generatedClassName, List<String> constructorArgs, TypeElement typeElement) {
+        generatedCode.append("\n    public ").append(generatedClassName).append("(");
+        generatedCode.append(String.join(", ", constructorArgs));
+        generatedCode.append(") {\n");
+        for (Element enclosedElement : typeElement.getEnclosedElements()) {
+            if (enclosedElement.getKind() == ElementKind.FIELD) {
+                String fieldName = enclosedElement.getSimpleName().toString();
+                generatedCode.append("        this.").append(fieldName).append(" = ").append(fieldName).append(";\n");
+            }
+        }
+        generatedCode.append("    }\n");
+    }
+
+    private static void generateDefaultConstructor(StringBuilder generatedCode, String generatedClassName) {
+        generatedCode.append("\n    public ").append(generatedClassName).append("(){};");
+    }
+
+    private static void generateFieldsAndPopulateConstuctorArgs(TypeElement typeElement, List<String> constructorArgs, StringBuilder generatedCode) {
+        for (Element enclosedElement : typeElement.getEnclosedElements()) {
+            if (enclosedElement.getKind() == ElementKind.FIELD) {
+                String fieldName = enclosedElement.getSimpleName().toString();
+                String fieldType = enclosedElement.asType().toString();
+                String fieldTypeTrimed = trimType(fieldType);
+                String variable = "\n   private " + fieldTypeTrimed + " " + fieldName + ";\n";
+                constructorArgs.add(fieldTypeTrimed + " " + fieldName);
+                generatedCode.append(variable);
+            }
+        }
+    }
+
+    private static String trimType(String fieldType) {
+        int lastIndex = fieldType.lastIndexOf('.');
+        String fieldTypeTrimed = fieldType.substring(lastIndex + 1);
+        return fieldTypeTrimed;
+    }
+
+    private static boolean isGetterAnnotation(RoundEnvironment roundEnv) {
+       Set<Element> elements = (Set<Element>) roundEnv.getElementsAnnotatedWith(Getters.class);
+        return !elements.isEmpty();
+    }
+
+    private static boolean isSetterAnnotation(RoundEnvironment roundEnv) {
+        Set<Element> elements = (Set<Element>) roundEnv.getElementsAnnotatedWith(Setters.class);
+        return !elements.isEmpty();
+    }
+
+    private boolean isAllArgsConstrAnnotation(RoundEnvironment roundEnv) {
+        Set<Element> elements = (Set<Element>) roundEnv.getElementsAnnotatedWith(ArgsConstructor.class);
+        return !elements.isEmpty();
+    }
+}
+
+
+
