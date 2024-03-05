@@ -13,15 +13,20 @@ import java.util.List;
 import java.util.Set;
 import java.io.File;
 
+/**
+ * Annotation processor that generates code for classes annotated with Getters, Setters, ArgsConstructor, and ToString.
+ */
 @SupportedAnnotationTypes({"org.example.annotation.Getters", "org.example.annotation.Setters", "org.example.annotation.ArgsConstructor"})
 @SupportedSourceVersion(SourceVersion.RELEASE_21)
 @AutoService(Processor.class)
 public class AllAnnotationsProcessor extends AbstractProcessor {
 
+    // Output directory path for generated source files
     private static final String OUTPUT_PATH_PREFIX = "target/generated-sources/annotations/";
 
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+        // Iterate over each annotation and its elements
         for (TypeElement annotation : annotations) {
             for (Element element : roundEnv.getElementsAnnotatedWith(annotation)) {
                 if (element.getKind() == ElementKind.CLASS) {
@@ -34,16 +39,25 @@ public class AllAnnotationsProcessor extends AbstractProcessor {
                     // commenting out package creation for the specific use in the custom-orm-project
                     // generatedCode.append("package ").append(packageName).append(";\n\n");
 
+                    // Class declaration
                     generatedCode.append("public class ").append(generatedClassName).append(" {\n");
                     List<String> constructorArgs = new ArrayList<>();
+
+                    // Generate fields and populate constructor arguments
                     generateFieldsAndPopulateConstuctorArgs(typeElement, constructorArgs, generatedCode);
+
+                    // Generate default constructor
                     generateDefaultConstructor(generatedCode, generatedClassName);
+
+                    // Generate all-args constructor
                     if (isAllArgsConstrAnnotation(roundEnv)) {
                         generateAllArgsConstructor(generatedCode, generatedClassName, constructorArgs, typeElement);
                     }
+                    // Generate getters and setters
                     if (isGetterAnnotation(roundEnv) || isSetterAnnotation(roundEnv)) {
                         generateGettersAndSetters(typeElement, generatedCode, roundEnv);
                     }
+                    // Generate toString method if annotated with ToString
                     if (isToStringConstrAnnotation(roundEnv)){
                         generateToStringMethod(typeElement, generatedCode);
                     }
@@ -61,6 +75,8 @@ public class AllAnnotationsProcessor extends AbstractProcessor {
         return true;
     }
 
+
+    // Method to write the generated code to a Java source file
     private void writeToJavaSourceFile(String packageName, String generatedClassName, StringBuilder generatedCode) {
         try {
             JavaFileObject javaFileObject = processingEnv.getFiler().createSourceFile(
@@ -73,6 +89,7 @@ public class AllAnnotationsProcessor extends AbstractProcessor {
         }
     }
 
+    // Method to generate getters and setters
     private static void generateGettersAndSetters(TypeElement typeElement, StringBuilder generatedCode, RoundEnvironment roundEnv) {
         for (Element enclosedElement : typeElement.getEnclosedElements()) {
             if (enclosedElement.getKind() == ElementKind.FIELD) {
@@ -95,10 +112,13 @@ public class AllAnnotationsProcessor extends AbstractProcessor {
         }
     }
 
+    // Method to generate all-args constructor
     private static void generateAllArgsConstructor(StringBuilder generatedCode, String generatedClassName, List<String> constructorArgs, TypeElement typeElement) {
         generatedCode.append("\n    public ").append(generatedClassName).append("(");
         generatedCode.append(String.join(", ", constructorArgs));
         generatedCode.append(") {\n");
+
+        // Populate fields in the constructor
         for (Element enclosedElement : typeElement.getEnclosedElements()) {
             if (enclosedElement.getKind() == ElementKind.FIELD) {
                 String fieldName = enclosedElement.getSimpleName().toString();
@@ -108,10 +128,12 @@ public class AllAnnotationsProcessor extends AbstractProcessor {
         generatedCode.append("    }\n");
     }
 
+    // Method to generate default constructor
     private static void generateDefaultConstructor(StringBuilder generatedCode, String generatedClassName) {
         generatedCode.append("\n    public ").append(generatedClassName).append("(){};\n");
     }
 
+    // Method to generate fields and populate constructor arguments
     private static void generateFieldsAndPopulateConstuctorArgs(TypeElement typeElement, List<String> constructorArgs, StringBuilder generatedCode) {
         for (Element enclosedElement : typeElement.getEnclosedElements()) {
             if (enclosedElement.getKind() == ElementKind.FIELD) {
@@ -125,6 +147,7 @@ public class AllAnnotationsProcessor extends AbstractProcessor {
         }
     }
 
+    // Method to generate toString method
     private static void generateToStringMethod(TypeElement typeElement, StringBuilder generatedCode) {
         generatedCode.append("\n    @Override");
         generatedCode.append("\n    public String toString() {\n");
