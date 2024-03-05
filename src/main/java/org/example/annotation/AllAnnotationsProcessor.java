@@ -8,13 +8,12 @@ import javax.lang.model.element.*;
 import javax.tools.*;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.sql.SQLOutput;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.io.File;
 
-@SupportedAnnotationTypes({"org.example.annotation.Getters", "org.example.annotation.Setters",  "org.example.annotation.ArgsConstructor"})
+@SupportedAnnotationTypes({"org.example.annotation.Getters", "org.example.annotation.Setters", "org.example.annotation.ArgsConstructor"})
 @SupportedSourceVersion(SourceVersion.RELEASE_21)
 @AutoService(Processor.class)
 public class AllAnnotationsProcessor extends AbstractProcessor {
@@ -44,6 +43,9 @@ public class AllAnnotationsProcessor extends AbstractProcessor {
                     }
                     if (isGetterAnnotation(roundEnv) || isSetterAnnotation(roundEnv)) {
                         generateGettersAndSetters(typeElement, generatedCode, roundEnv);
+                    }
+                    if (isToStringConstrAnnotation(roundEnv)){
+                        generateToStringMethod(typeElement, generatedCode);
                     }
                     // Close the class
                     generatedCode.append("}\n");
@@ -107,7 +109,7 @@ public class AllAnnotationsProcessor extends AbstractProcessor {
     }
 
     private static void generateDefaultConstructor(StringBuilder generatedCode, String generatedClassName) {
-        generatedCode.append("\n    public ").append(generatedClassName).append("(){};");
+        generatedCode.append("\n    public ").append(generatedClassName).append("(){};\n");
     }
 
     private static void generateFieldsAndPopulateConstuctorArgs(TypeElement typeElement, List<String> constructorArgs, StringBuilder generatedCode) {
@@ -121,6 +123,32 @@ public class AllAnnotationsProcessor extends AbstractProcessor {
                 generatedCode.append(variable);
             }
         }
+    }
+
+    private static void generateToStringMethod(TypeElement typeElement, StringBuilder generatedCode) {
+        generatedCode.append("\n    @Override");
+        generatedCode.append("\n    public String toString() {\n");
+        generatedCode.append("        return \"").append(typeElement.getSimpleName()).append("{\" +\n");
+
+        // Generate the toString method body by concatenating field names and values
+        List<? extends Element> enclosedElements = typeElement.getEnclosedElements();
+        for (int i = 0; i < enclosedElements.size(); i++) {
+            Element enclosedElement = enclosedElements.get(i);
+            if (enclosedElement.getKind() == ElementKind.FIELD) {
+                String fieldName = enclosedElement.getSimpleName().toString();
+                generatedCode.append("                \"").append(fieldName).append("=\" + ").append(fieldName);
+                if (i < enclosedElements.size()-5) {
+                    generatedCode.append(" + \", \" + ");
+                } else {
+                    generatedCode.append(" + ");
+                }
+                generatedCode.append("\n");
+            }
+        }
+
+        // Add the closing brace and semicolon to complete the toString method
+        generatedCode.append("                '}';\n");
+        generatedCode.append("    }\n");
     }
 
     private static String trimType(String fieldType) {
@@ -141,6 +169,11 @@ public class AllAnnotationsProcessor extends AbstractProcessor {
 
     private boolean isAllArgsConstrAnnotation(RoundEnvironment roundEnv) {
         Set<Element> elements = (Set<Element>) roundEnv.getElementsAnnotatedWith(ArgsConstructor.class);
+        return !elements.isEmpty();
+    }
+
+    private boolean isToStringConstrAnnotation(RoundEnvironment roundEnv) {
+        Set<Element> elements = (Set<Element>) roundEnv.getElementsAnnotatedWith(ToString.class);
         return !elements.isEmpty();
     }
 }
